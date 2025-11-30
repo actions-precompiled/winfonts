@@ -34,32 +34,28 @@ jobs:
           zip -r ../windows-fonts-$TAG.zip .
           cd ..
 
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
+      - name: Create Release (idempotent)
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ env.TAG }}
-          release_name: Windows Fonts ${{ env.TAG }}
-          body: |
-            Automated release of Windows fonts extracted from official Windows ISOs.
+          TAG: ${{ env.TAG }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$TAG" \
+            --title "Windows Fonts $TAG" \
+            --notes "Automated release of Windows fonts extracted from official Windows ISOs.
 
-            **Release Date:** ${{ env.TAG }}
+          **Release Date:** $TAG
 
-            This archive contains TrueType fonts (.ttf) extracted from Windows installation media.
-          draft: false
-          prerelease: false
+          This archive contains TrueType fonts (.ttf) extracted from Windows installation media." \
+            --latest || true
 
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
+      - name: Upload Release Assets
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./windows-fonts-${{ env.TAG }}.zip
-          asset_name: windows-fonts-${{ env.TAG }}.zip
-          asset_content_type: application/zip
+          TAG: ${{ env.TAG }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "$TAG" \
+            windows-fonts-$TAG.zip \
+            --clobber
 
       - name: Summary
         env:
