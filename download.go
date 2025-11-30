@@ -29,10 +29,10 @@ const (
 type WindowsEdition string
 
 const (
-	EditionHome        WindowsEdition = "home"
-	EditionPro         WindowsEdition = "pro"
-	EditionEnterprise  WindowsEdition = "enterprise"
-	EditionEducation   WindowsEdition = "education"
+	EditionHome       WindowsEdition = "home"
+	EditionPro        WindowsEdition = "pro"
+	EditionEnterprise WindowsEdition = "enterprise"
+	EditionEducation  WindowsEdition = "education"
 )
 
 type Architecture string
@@ -66,10 +66,10 @@ type SKUInfo struct {
 }
 
 type DownloadOption struct {
-	Architecture     string `json:"architecture"`
-	DownloadType     string `json:"downloadType"`
-	URI              string `json:"uri"`
-	IsoSha256        string `json:"isoSha256"`
+	Architecture string `json:"architecture"`
+	DownloadType string `json:"downloadType"`
+	URI          string `json:"uri"`
+	IsoSha256    string `json:"isoSha256"`
 }
 
 type DownloadResponse struct {
