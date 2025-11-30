@@ -55,7 +55,7 @@ func (e *FontExtractor) handleWimImage(ctx context.Context, image *wim.Image) er
 	for _, item := range dir {
 		log.Printf("wimfile: %s", item.Name)
 		ext := filepath.Ext(item.Name)
-		if ext == "ttf" {
+		if ext == ".ttf" {
 			f, err := item.Open()
 			if err != nil {
 				return fmt.Errorf("failed to open font file %s in WIM image: %w", item.Name, err)
@@ -89,21 +89,34 @@ func (e *FontExtractor) handleWim(ctx context.Context, f udf.File) error {
 	return nil
 }
 
-func (e *FontExtractor) extractFonts(ctx context.Context) error {
-	log.Printf("Starting font extraction from ISO")
-	children := e.iso.ReadDir(nil)
+func (e *FontExtractor) isoFiles(yield func(udf.File) bool) {
+	var walk func([]udf.File) bool
 
-	log.Printf("Scanning ISO for WIM files...")
-	for _, item := range children {
-		log.Printf("isofile: %s", item.Name())
-		if item.Name() == "README.TXT" {
-			r := item.NewReader()
-			err := e.saveReader(ctx, r, item.Name())
-			if err != nil {
-				return err
+	walk = func(files []udf.File) bool {
+		for _, item := range files {
+			if !yield(item) {
+				return false
+			}
+
+			if item.IsDir() {
+				children := e.iso.ReadDir(item.FileEntry())
+				if !walk(children) {
+					return false
+				}
 			}
 		}
-		if filepath.Ext(item.Name()) == "wim" {
+		return true
+	}
+
+	walk(e.iso.ReadDir(nil))
+}
+
+func (e *FontExtractor) extractFonts(ctx context.Context) error {
+	log.Printf("Starting font extraction from ISO")
+	log.Printf("Scanning ISO for WIM files...")
+	for item := range e.isoFiles {
+		log.Printf("isofile: %s %s", item.Name(), filepath.Ext(item.Name()))
+		if filepath.Ext(item.Name()) == ".wim" {
 			err := e.handleWim(ctx, item)
 			if err != nil {
 				return fmt.Errorf("failed to extract fonts from %s: %w", item.Name(), err)
