@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/Microsoft/go-winio/wim"
 	"github.com/kdomanski/iso9660"
@@ -54,6 +53,7 @@ func (e *FontExtractor) handleWimImage(ctx context.Context, image *wim.Image) er
 		return fmt.Errorf("failed to read WIM image directory: %w", err)
 	}
 	for _, item := range dir {
+		log.Printf("wimfile: %s", item.Name)
 		ext := filepath.Ext(item.Name)
 		if ext == "ttf" {
 			f, err := item.Open()
@@ -79,6 +79,7 @@ func (e *FontExtractor) handleWim(ctx context.Context, f *iso9660.File) error {
 	}
 	log.Printf("  Found %d image(s) in WIM", len(bundle.Image))
 	for idx, image := range bundle.Image {
+		log.Printf("wimimage: %s", image.Name)
 		log.Printf("  Processing image %d/%d", idx+1, len(bundle.Image))
 		err = e.handleWimImage(ctx, image)
 		if err != nil {
@@ -100,7 +101,18 @@ func (e *FontExtractor) extractFonts(ctx context.Context) error {
 	}
 	log.Printf("Scanning ISO for WIM files...")
 	for _, item := range children {
-		if strings.HasSuffix(item.Name(), ".wim") {
+		log.Printf("isofile: %s", item.Name())
+		if item.Name() == "README.TXT" {
+			r := item.Reader()
+			if err != nil {
+				return err
+			}
+			err = e.saveReader(ctx, r, item.Name())
+			if err != nil {
+				return err
+			}
+		}
+		if filepath.Ext(item.Name()) == "wim" {
 			err := e.handleWim(ctx, item)
 			if err != nil {
 				return fmt.Errorf("failed to extract fonts from %s: %w", item.Name(), err)
