@@ -9,16 +9,17 @@ import (
 	"path/filepath"
 
 	"github.com/Microsoft/go-winio/wim"
+	"github.com/Xmister/udf"
 	"github.com/kdomanski/iso9660"
 )
 
 type FontExtractor struct {
-	iso    *iso9660.Image
+	iso    *udf.Image
 	output string
 }
 
 func NewFontExtractor(ra io.ReaderAt, output string) (*FontExtractor, error) {
-	iso, err := iso9660.OpenImage(ra)
+	iso, err := udf.NewUdfFromReader(ra)
 	if err != nil {
 		return nil, err
 	}
