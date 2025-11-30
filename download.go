@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
 )
 
@@ -60,9 +62,20 @@ type WindowsDownloader struct {
 }
 
 type SKUInfo struct {
-	ID           string `json:"id"`
-	Language     string `json:"language"`
-	LanguageCode string `json:"languageCode"`
+	ID                          string   `json:"Id"`
+	Description                 string   `json:"Description"`
+	ProductDisplayName          string   `json:"ProductDisplayName"`
+	Language                    string   `json:"Language"`
+	LocalizedLanguage           string   `json:"LocalizedLanguage"`
+	LocalizedProductDisplayName string   `json:"LocalizedProductDisplayName"`
+	ProductEditionName          interface{} `json:"ProductEditionName"`
+	FriendlyFileNames           []string `json:"FriendlyFileNames"`
+}
+
+type SKUResponse struct {
+	Skus                []SKUInfo              `json:"Skus"`
+	ValidationContainer map[string]interface{} `json:"ValidationContainer"`
+	Tickets             interface{}            `json:"Tickets"`
 }
 
 type DownloadOption struct {
@@ -77,14 +90,49 @@ type DownloadResponse struct {
 }
 
 func NewWindowsDownloader(version WindowsVersion, edition WindowsEdition, arch Architecture, language Language) *WindowsDownloader {
+	jar, _ := cookiejar.New(nil)
 	return &WindowsDownloader{
-		client:    &http.Client{},
+		client:    &http.Client{Jar: jar},
 		sessionID: uuid.New().String(),
 		version:   version,
 		edition:   edition,
 		arch:      arch,
 		language:  language,
 	}
+}
+
+func (w *WindowsDownloader) addBrowserHeaders(req *http.Request) {
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "application/json, text/plain, */*")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	req.Header.Set("DNT", "1")
+	req.Header.Set("Connection", "keep-alive")
+	req.Header.Set("Sec-Fetch-Dest", "empty")
+	req.Header.Set("Sec-Fetch-Mode", "cors")
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+}
+
+func (w *WindowsDownloader) validateLocale() error {
+	localeURL := fmt.Sprintf("https://www.microsoft.com/en-US/software-download/%s", w.version)
+
+	req, err := http.NewRequest("GET", localeURL, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create locale request: %w", err)
+	}
+
+	w.addBrowserHeaders(req)
+
+	resp, err := w.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to validate locale: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("locale validation failed with status: %d", resp.StatusCode)
+	}
+
+	return nil
 }
 
 func (w *WindowsDownloader) registerSession() error {
@@ -94,6 +142,8 @@ func (w *WindowsDownloader) registerSession() error {
 	if err != nil {
 		return fmt.Errorf("failed to create session request: %w", err)
 	}
+
+	w.addBrowserHeaders(req)
 
 	resp, err := w.client.Do(req)
 	if err != nil {
@@ -124,6 +174,8 @@ func (w *WindowsDownloader) getSKUInformation(productEditionID string) ([]SKUInf
 		return nil, fmt.Errorf("failed to create SKU request: %w", err)
 	}
 
+	w.addBrowserHeaders(req)
+
 	resp, err := w.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get SKU information: %w", err)
@@ -139,12 +191,17 @@ func (w *WindowsDownloader) getSKUInformation(productEditionID string) ([]SKUInf
 		return nil, fmt.Errorf("failed to read SKU response: %w", err)
 	}
 
-	var skus []SKUInfo
-	if err := json.Unmarshal(body, &skus); err != nil {
+	var skuResponse SKUResponse
+	if err := json.Unmarshal(body, &skuResponse); err != nil {
+		var data interface{}
+		if err := json.Unmarshal(body, &data); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal JSON: %w", err)
+		}
+		spew.Dump(data)
 		return nil, fmt.Errorf("failed to parse SKU response: %w", err)
 	}
 
-	return skus, nil
+	return skuResponse.Skus, nil
 }
 
 func (w *WindowsDownloader) getDownloadLink(skuID string) (string, error) {
@@ -163,6 +220,7 @@ func (w *WindowsDownloader) getDownloadLink(skuID string) (string, error) {
 		return "", fmt.Errorf("failed to create download request: %w", err)
 	}
 
+	w.addBrowserHeaders(req)
 	req.Header.Set("Referer", fmt.Sprintf("https://www.microsoft.com/software-download/%s", w.version))
 
 	resp, err := w.client.Do(req)
@@ -180,21 +238,21 @@ func (w *WindowsDownloader) getDownloadLink(skuID string) (string, error) {
 		return "", fmt.Errorf("failed to read download response: %w", err)
 	}
 
-	var downloadResp DownloadResponse
-	if err := json.Unmarshal(body, &downloadResp); err != nil {
-		return "", fmt.Errorf("failed to parse download response: %w", err)
+	var data interface{}
+	if err := json.Unmarshal(body, &data); err != nil {
+		return "", fmt.Errorf("failed to unmarshal JSON: %w", err)
 	}
 
-	for _, option := range downloadResp.ProductDownloadOptions {
-		if option.Architecture == string(w.arch) {
-			return option.URI, nil
-		}
-	}
+	spew.Dump(data)
 
-	return "", fmt.Errorf("no download link found for architecture %s", w.arch)
+	return "", fmt.Errorf("TODO: parse download response")
 }
 
 func (w *WindowsDownloader) GetDownloadURL(productEditionID string) (string, error) {
+	if err := w.validateLocale(); err != nil {
+		return "", fmt.Errorf("failed to validate locale: %w", err)
+	}
+
 	if err := w.registerSession(); err != nil {
 		return "", fmt.Errorf("failed to register session: %w", err)
 	}
