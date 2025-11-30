@@ -39,9 +39,8 @@ The command will mount the ISO, locate the fonts directory, and extract all font
 			return fmt.Errorf("failed to create font extractor: %w", err)
 		}
 
-		extractor.Run(cmd.Context())
+		return extractor.Run(cmd.Context())
 
-		return nil
 	},
 }
 
