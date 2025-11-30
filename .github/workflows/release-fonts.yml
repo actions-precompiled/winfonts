@@ -1,0 +1,70 @@
+name: Release Windows Fonts
+
+on:
+  schedule:
+    # Every Saturday at 2 AM UTC
+    - cron: "0 2 * * 6"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release-fonts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install mise
+        uses: jdx/mise-action@v3
+
+      - name: Generate release tag
+        id: tag
+        run: echo "TAG=$(date +'%Y.%m.%d')" >> $GITHUB_OUTPUT
+
+      - name: Fetch Windows fonts
+        run: go run ./cmd/winfonts fetch -o fonts
+        timeout-minutes: 60
+
+      - name: Create fonts archive
+        run: |
+          cd fonts
+          zip -r ../windows-fonts-${{ steps.tag.outputs.TAG }}.zip .
+          cd ..
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.tag.outputs.TAG }}
+          release_name: Windows Fonts ${{ steps.tag.outputs.TAG }}
+          body: |
+            Automated release of Windows fonts extracted from official Windows ISOs.
+
+            **Release Date:** ${{ steps.tag.outputs.TAG }}
+
+            This archive contains TrueType fonts (.ttf) extracted from Windows installation media.
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./windows-fonts-${{ steps.tag.outputs.TAG }}.zip
+          asset_name: windows-fonts-${{ steps.tag.outputs.TAG }}.zip
+          asset_content_type: application/zip
+
+      - name: Summary
+        run: |
+          echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag:** ${{ steps.tag.outputs.TAG }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Archive:** windows-fonts-${{ steps.tag.outputs.TAG }}.zip" >> $GITHUB_STEP_SUMMARY
+          echo "- **Fonts extracted:** $(find fonts -name '*.ttf' | wc -l)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Archive size:** $(du -h windows-fonts-${{ steps.tag.outputs.TAG }}.zip | cut -f1)" >> $GITHUB_STEP_SUMMARY
