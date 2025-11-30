@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/actions-precompiled/winfonts"
+	"github.com/schollz/progressbar/v3"
 	"github.com/spf13/cobra"
 )
 
@@ -81,14 +82,17 @@ func downloadFile(url, filepath string) error {
 		return fmt.Errorf("bad status: %s", resp.Status)
 	}
 
-	fmt.Printf("File size: %d bytes\n", resp.ContentLength)
+	bar := progressbar.DefaultBytes(
+		resp.ContentLength,
+		"Downloading",
+	)
 
-	written, err := io.Copy(out, resp.Body)
+	_, err = io.Copy(io.MultiWriter(out, bar), resp.Body)
 	if err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 
-	fmt.Printf("Downloaded: %d bytes\n", written)
+	fmt.Println()
 	return nil
 }
 
