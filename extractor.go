@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"iter"
 	"log"
 	"os"
 	"path/filepath"
@@ -43,26 +44,60 @@ func (e *FontExtractor) saveReader(ctx context.Context, r io.Reader, outputFile 
 	return nil
 }
 
-func (e *FontExtractor) handleWimImage(ctx context.Context, image *wim.Image) error {
-	f, err := image.Open()
-	if err != nil {
-		return fmt.Errorf("failed to open WIM image: %w", err)
-	}
-	dir, err := f.Readdir()
-	if err != nil {
-		return fmt.Errorf("failed to read WIM image directory: %w", err)
-	}
-	for _, item := range dir {
-		log.Printf("wimfile: %s", item.Name)
-		ext := filepath.Ext(item.Name)
-		if ext == ".ttf" {
-			f, err := item.Open()
+func (e *FontExtractor) wimFiles(image *wim.Image) iter.Seq2[*wim.File, error] {
+	return func(yield func(*wim.File, error) bool) {
+		var walk func(*wim.File) bool
+
+		walk = func(dir *wim.File) bool {
+			entries, err := dir.Readdir()
 			if err != nil {
-				return fmt.Errorf("failed to open font file %s in WIM image: %w", item.Name, err)
+				yield(nil, fmt.Errorf("failed to read directory: %w", err))
+				return false
 			}
-			err = e.saveReader(ctx, f, item.Name)
+
+			for _, entry := range entries {
+
+				if !yield(entry, nil) {
+					return false
+				}
+
+				if entry.IsDir() {
+					if !walk(entry) {
+						return false
+					}
+				}
+			}
+			return true
+		}
+
+		root, err := image.Open()
+		if err != nil {
+			yield(nil, fmt.Errorf("failed to open WIM image: %w", err))
+			return
+		}
+
+		walk(root)
+	}
+}
+
+func (e *FontExtractor) handleWimImage(ctx context.Context, image *wim.Image) error {
+	for file, err := range e.wimFiles(image) {
+		if err != nil {
+			return err
+		}
+
+		log.Printf("wimfile: %s", file.Name)
+		ext := filepath.Ext(file.Name)
+		if ext == ".ttf" {
+			r, err := file.Open()
 			if err != nil {
-				return fmt.Errorf("failed to save font %s: %w", item.Name, err)
+				log.Printf("failed to open font file %s in WIM image: %v", file.Name, err)
+				continue
+			}
+			err = e.saveReader(ctx, r, file.Name)
+			if err != nil {
+				log.Printf("failed to save font %s: %v", file.Name, err)
+				continue
 			}
 		}
 	}
