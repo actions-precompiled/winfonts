@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/actions-precompiled/winfonts"
 	"github.com/spf13/cobra"
 )
 
@@ -26,6 +27,19 @@ The command will mount the ISO, locate the fonts directory, and extract all font
 		}
 
 		fmt.Printf("Extracting fonts from %s to %s\n", isoFile, outputDir)
+
+		f, err := os.Open(isoFile)
+		if err != nil {
+			return fmt.Errorf("failed to open ISO file: %w", err)
+		}
+		defer f.Close()
+
+		extractor, err := winfonts.NewFontExtractor(f, outputDir)
+		if err != nil {
+			return fmt.Errorf("failed to create font extractor: %w", err)
+		}
+
+		extractor.Run(cmd.Context())
 
 		return nil
 	},

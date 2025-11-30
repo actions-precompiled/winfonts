@@ -3,6 +3,7 @@ module github.com/actions-precompiled/winfonts
 go 1.25.4
 
 require (
+	github.com/Microsoft/go-winio v0.6.2
 	github.com/kdomanski/iso9660 v0.4.0
 	github.com/spf13/cobra v1.10.1
 )
