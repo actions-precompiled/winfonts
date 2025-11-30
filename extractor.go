@@ -10,11 +10,10 @@ import (
 
 	"github.com/Microsoft/go-winio/wim"
 	"github.com/Xmister/udf"
-	"github.com/kdomanski/iso9660"
 )
 
 type FontExtractor struct {
-	iso    *udf.Image
+	iso    *udf.Udf
 	output string
 }
 
@@ -70,10 +69,10 @@ func (e *FontExtractor) handleWimImage(ctx context.Context, image *wim.Image) er
 	return nil
 }
 
-func (e *FontExtractor) handleWim(ctx context.Context, f *iso9660.File) error {
+func (e *FontExtractor) handleWim(ctx context.Context, f udf.File) error {
 	wimName := f.Name()
 	log.Printf("Processing WIM file: %s", wimName)
-	r := f.Reader().(*io.SectionReader)
+	r := f.NewReader()
 	bundle, err := wim.NewReader(r)
 	if err != nil {
 		return fmt.Errorf("failed to read WIM file %s: %w", wimName, err)
@@ -92,23 +91,14 @@ func (e *FontExtractor) handleWim(ctx context.Context, f *iso9660.File) error {
 
 func (e *FontExtractor) extractFonts(ctx context.Context) error {
 	log.Printf("Starting font extraction from ISO")
-	f, err := e.iso.RootDir()
-	if err != nil {
-		return fmt.Errorf("failed to access ISO root directory: %w", err)
-	}
-	children, err := f.GetAllChildren()
-	if err != nil {
-		return fmt.Errorf("failed to list ISO contents: %w", err)
-	}
+	children := e.iso.ReadDir(nil)
+
 	log.Printf("Scanning ISO for WIM files...")
 	for _, item := range children {
 		log.Printf("isofile: %s", item.Name())
 		if item.Name() == "README.TXT" {
-			r := item.Reader()
-			if err != nil {
-				return err
-			}
-			err = e.saveReader(ctx, r, item.Name())
+			r := item.NewReader()
+			err := e.saveReader(ctx, r, item.Name())
 			if err != nil {
 				return err
 			}
