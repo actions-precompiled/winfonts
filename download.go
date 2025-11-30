@@ -79,14 +79,20 @@ type SKUResponse struct {
 }
 
 type DownloadOption struct {
-	Architecture string `json:"architecture"`
-	DownloadType string `json:"downloadType"`
-	URI          string `json:"uri"`
-	IsoSha256    string `json:"isoSha256"`
+	DownloadType                int    `json:"DownloadType"`
+	Name                        string `json:"Name"`
+	Uri                         string `json:"Uri"`
+	ProductDisplayName          string `json:"ProductDisplayName"`
+	Language                    string `json:"Language"`
+	LocalizedProductDisplayName string `json:"LocalizedProductDisplayName"`
+	LocalizedLanguage           string `json:"LocalizedLanguage"`
 }
 
 type DownloadResponse struct {
-	ProductDownloadOptions []DownloadOption `json:"ProductDownloadOptions"`
+	ProductDownloadOptions      []DownloadOption       `json:"ProductDownloadOptions"`
+	ProductDownload             interface{}            `json:"ProductDownload"`
+	ValidationContainer         map[string]interface{} `json:"ValidationContainer"`
+	DownloadExpirationDatetime  string                 `json:"DownloadExpirationDatetime"`
 }
 
 func NewWindowsDownloader(version WindowsVersion, edition WindowsEdition, arch Architecture, language Language) *WindowsDownloader {
@@ -98,6 +104,19 @@ func NewWindowsDownloader(version WindowsVersion, edition WindowsEdition, arch A
 		edition:   edition,
 		arch:      arch,
 		language:  language,
+	}
+}
+
+func (w *WindowsDownloader) getArchDownloadType() int {
+	switch w.arch {
+	case ArchX86:
+		return 0
+	case ArchX64:
+		return 1
+	case ArchARM64:
+		return 2
+	default:
+		return 1
 	}
 }
 
@@ -238,14 +257,24 @@ func (w *WindowsDownloader) getDownloadLink(skuID string) (string, error) {
 		return "", fmt.Errorf("failed to read download response: %w", err)
 	}
 
-	var data interface{}
-	if err := json.Unmarshal(body, &data); err != nil {
-		return "", fmt.Errorf("failed to unmarshal JSON: %w", err)
+	var downloadResp DownloadResponse
+	if err := json.Unmarshal(body, &downloadResp); err != nil {
+		var data interface{}
+		if err := json.Unmarshal(body, &data); err != nil {
+			return "", fmt.Errorf("failed to unmarshal JSON: %w", err)
+		}
+		spew.Dump(data)
+		return "", fmt.Errorf("failed to parse download response: %w", err)
 	}
 
-	spew.Dump(data)
+	archType := w.getArchDownloadType()
+	for _, option := range downloadResp.ProductDownloadOptions {
+		if option.DownloadType == archType {
+			return option.Uri, nil
+		}
+	}
 
-	return "", fmt.Errorf("TODO: parse download response")
+	return "", fmt.Errorf("no download link found for architecture %s (download type %d)", w.arch, archType)
 }
 
 func (w *WindowsDownloader) GetDownloadURL(productEditionID string) (string, error) {
