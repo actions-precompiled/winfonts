@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,6 +30,7 @@ func NewFontExtractor(ra io.ReaderAt, output string) (*FontExtractor, error) {
 }
 
 func (e *FontExtractor) saveReader(ctx context.Context, r io.Reader, outputFile string) error {
+	log.Printf("  Extracting font: %s", outputFile)
 	location := filepath.Join(e.output, outputFile)
 	f, err := os.Create(location)
 	if err != nil {
@@ -69,12 +71,15 @@ func (e *FontExtractor) handleWimImage(ctx context.Context, image *wim.Image) er
 
 func (e *FontExtractor) handleWim(ctx context.Context, f *iso9660.File) error {
 	wimName := f.Name()
+	log.Printf("Processing WIM file: %s", wimName)
 	r := f.Reader().(*io.SectionReader)
 	bundle, err := wim.NewReader(r)
 	if err != nil {
 		return fmt.Errorf("failed to read WIM file %s: %w", wimName, err)
 	}
-	for _, image := range bundle.Image {
+	log.Printf("  Found %d image(s) in WIM", len(bundle.Image))
+	for idx, image := range bundle.Image {
+		log.Printf("  Processing image %d/%d", idx+1, len(bundle.Image))
 		err = e.handleWimImage(ctx, image)
 		if err != nil {
 			return fmt.Errorf("failed to process image in WIM file %s: %w", wimName, err)
@@ -84,6 +89,7 @@ func (e *FontExtractor) handleWim(ctx context.Context, f *iso9660.File) error {
 }
 
 func (e *FontExtractor) extractFonts(ctx context.Context) error {
+	log.Printf("Starting font extraction from ISO")
 	f, err := e.iso.RootDir()
 	if err != nil {
 		return fmt.Errorf("failed to access ISO root directory: %w", err)
@@ -92,6 +98,7 @@ func (e *FontExtractor) extractFonts(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to list ISO contents: %w", err)
 	}
+	log.Printf("Scanning ISO for WIM files...")
 	for _, item := range children {
 		if strings.HasSuffix(item.Name(), ".wim") {
 			err := e.handleWim(ctx, item)
@@ -100,6 +107,7 @@ func (e *FontExtractor) extractFonts(ctx context.Context) error {
 			}
 		}
 	}
+	log.Printf("Font extraction completed successfully")
 	return nil
 }
 
