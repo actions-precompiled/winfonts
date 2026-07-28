@@ -35,7 +35,7 @@ This command combines the download and extract operations into a single step.`,
 		language := winfonts.Language(fetchLanguage)
 
 		if fetchProductID == "" {
-			fetchProductID = getDefaultProductEditionID(version, edition)
+			fetchProductID = getDefaultProductEditionID(version, arch)
 		}
 
 		if err := os.MkdirAll(fetchOutputDir, 0755); err != nil {

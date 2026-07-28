@@ -32,7 +32,7 @@ This command uses the same API endpoints as Microsoft's official download tool.`
 		language := winfonts.Language(windowsLanguage)
 
 		if productEditionID == "" {
-			productEditionID = getDefaultProductEditionID(version, edition)
+			productEditionID = getDefaultProductEditionID(version, arch)
 		}
 
 		fmt.Printf("Downloading Windows ISO...\n")
@@ -96,29 +96,8 @@ func downloadFile(url, filepath string) error {
 	return nil
 }
 
-func getDefaultProductEditionID(version winfonts.WindowsVersion, edition winfonts.WindowsEdition) string {
-	editionMap := map[winfonts.WindowsVersion]map[winfonts.WindowsEdition]string{
-		winfonts.Windows11: {
-			winfonts.EditionHome:       "2618",
-			winfonts.EditionPro:        "2618",
-			winfonts.EditionEnterprise: "2618",
-			winfonts.EditionEducation:  "2618",
-		},
-		winfonts.Windows10: {
-			winfonts.EditionHome:       "2935",
-			winfonts.EditionPro:        "2935",
-			winfonts.EditionEnterprise: "2935",
-			winfonts.EditionEducation:  "2935",
-		},
-	}
-
-	if versionMap, ok := editionMap[version]; ok {
-		if id, ok := versionMap[edition]; ok {
-			return id
-		}
-	}
-
-	return "2618"
+func getDefaultProductEditionID(version winfonts.WindowsVersion, arch winfonts.Architecture) string {
+	return winfonts.DefaultProductEditionID(version, arch)
 }
 
 func init() {
