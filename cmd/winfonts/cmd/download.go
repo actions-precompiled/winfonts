@@ -18,7 +18,6 @@ var (
 	windowsLanguage  string
 	productEditionID string
 	outputFile       string
-	downloadSource   string
 )
 
 var downloadCmd = &cobra.Command{
@@ -44,8 +43,8 @@ This command uses the same API endpoints as Microsoft's official download tool.`
 
 		downloader := winfonts.NewWindowsDownloader(version, edition, arch, language)
 
-		fmt.Printf("\nObtaining download URL from Microsoft (source=%s)...\n", downloadSource)
-		downloadURL, err := downloader.GetDownloadURLFrom(productEditionID, winfonts.DownloadSource(downloadSource))
+		fmt.Println("\nObtaining download URL from Microsoft...")
+		downloadURL, err := downloader.GetDownloadURL(productEditionID)
 		if err != nil {
 			return fmt.Errorf("failed to get download URL: %w", err)
 		}
@@ -110,5 +109,4 @@ func init() {
 	downloadCmd.Flags().StringVarP(&windowsLanguage, "language", "l", "en-US", "Language (en-US, pt-BR)")
 	downloadCmd.Flags().StringVarP(&productEditionID, "product-id", "p", "", "Product edition ID (optional, uses defaults if not specified)")
 	downloadCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file path (default: windows_{version}_{edition}_{arch}.iso)")
-	downloadCmd.Flags().StringVar(&downloadSource, "source", "auto", "ISO source: auto (retail then eval), retail, or eval")
 }

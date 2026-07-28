@@ -23,7 +23,7 @@ jobs:
         run: echo "TAG=$(date +'%Y.%m.%d')" >> $GITHUB_ENV
 
       - name: Fetch Windows fonts
-        run: go run ./cmd/winfonts fetch -o fonts --source eval
+        run: go run ./cmd/winfonts fetch -o fonts
         timeout-minutes: 60
 
       - name: Create fonts archive
