@@ -17,6 +17,7 @@ var (
 	fetchProductID string
 	fetchOutputDir string
 	keepISO       bool
+	fetchSource   string
 )
 
 var fetchCmd = &cobra.Command{
@@ -55,9 +56,10 @@ This command combines the download and extract operations into a single step.`,
 		fmt.Printf("  Output: %s\n", fetchOutputDir)
 
 		downloader := winfonts.NewWindowsDownloader(version, edition, arch, language)
+		source := winfonts.DownloadSource(fetchSource)
 
-		fmt.Println("\nObtaining download URL from Microsoft...")
-		downloadURL, err := downloader.GetDownloadURL(fetchProductID)
+		fmt.Printf("\nObtaining download URL from Microsoft (source=%s)...\n", source)
+		downloadURL, err := downloader.GetDownloadURLFrom(fetchProductID, source)
 		if err != nil {
 			return fmt.Errorf("failed to get download URL: %w", err)
 		}
@@ -105,6 +107,7 @@ func init() {
 	fetchCmd.Flags().StringVarP(&fetchLanguage, "language", "l", "en-US", "Language (en-US, pt-BR)")
 	fetchCmd.Flags().StringVarP(&fetchProductID, "product-id", "p", "", "Product edition ID (optional)")
 	fetchCmd.Flags().BoolVarP(&keepISO, "keep-iso", "k", false, "Keep the downloaded ISO file after extraction")
+	fetchCmd.Flags().StringVar(&fetchSource, "source", "auto", "ISO source: auto (retail then eval), retail, or eval")
 
 	fetchCmd.MarkFlagRequired("output")
 }
